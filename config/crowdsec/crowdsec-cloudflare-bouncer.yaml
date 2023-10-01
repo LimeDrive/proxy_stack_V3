@@ -1,0 +1,26 @@
+crowdsec_update_frequency: 10s
+include_scenarios_containing: [] # ignore IPs banned for triggering scenarios not containing either of provided word
+exclude_scenarios_containing: [] # ignore IPs banned for triggering scenarios containing either of provided word
+only_include_decisions_from: [] # only include IPs banned due to decisions orginating from provided sources. eg value ["cscli", "crowdsec"]
+cloudflare_config:
+    accounts:
+        - id: TOFIX  # Account
+          zones:
+            - zone_id: TOFIX  # Domain
+              actions:
+                - managed_challenge
+          token: TOFIX  # API Token
+          ip_list_prefix: crowdsec
+          default_action: managed_challenge
+          total_ip_list_capacity: 9995 # only this many latest IP decisions would be kept
+    update_frequency: 300s
+daemon: true
+log_mode: stdout
+# log_dir: /var/log/
+log_level: info
+# log_max_size: 40
+# log_max_age: 30
+# log_max_backups: 3
+compress_logs: true
+prometheus:
+    enabled: false

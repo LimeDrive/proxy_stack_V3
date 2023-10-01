@@ -1,0 +1,148 @@
+[api]
+  dashboard = true
+
+[log]
+  level = "WARN"
+
+[experimental]
+  http3 = true
+  [experimental.plugins.torblock]
+    moduleName = "github.com/jpxd/torblock"
+    version = "v0.1.1"
+  [experimental.plugins.bouncer]
+    moduleName = "github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
+    version = "v1.1.16"
+
+[metrics]
+  [metrics.prometheus]
+    addRoutersLabels = true
+
+[entryPoints.web]
+  address = ":80"
+    [entryPoints.web.http.redirections]
+      [entryPoints.web.http.redirections.entryPoint]
+        to = "websecure"
+        scheme = "https"
+  [entryPoints.web.forwardedHeaders]
+    trustedIPs = [
+    # Local IP
+    "127.0.0.1/32",
+    "172.20.0.0/24",
+    "10.20.0.0/24",
+    # Cloudflare
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+    "2400:cb00::/32",
+    "2606:4700::/32",
+    "2803:f800::/32",
+    "2405:b500::/32",
+    "2405:8100::/32",
+    "2a06:98c0::/29",
+    "2c0f:f248::/32"
+  ]
+
+[entryPoints.websecure]
+  address = ":443"
+  asDefault = true
+  [entryPoints.websecure.http3]
+    advertisedPort = 443
+  [entryPoints.websecure.forwardedHeaders]
+    trustedIPs = [
+    # Local IP
+    "127.0.0.1/32",
+    "172.20.0.0/24",
+    "10.20.0.0/24",
+    # Cloudflare
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+    "2400:cb00::/32",
+    "2606:4700::/32",
+    "2803:f800::/32",
+    "2405:b500::/32",
+    "2405:8100::/32",
+    "2a06:98c0::/29",
+    "2c0f:f248::/32"
+  ]
+  [entryPoints.websecure.proxyProtocol]
+    trustedIPs = [
+    # Local IP
+    "127.0.0.1/32",
+    "172.20.0.0/24",
+    "10.20.0.0/24",
+    # Cloudflare
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+    "2400:cb00::/32",
+    "2606:4700::/32",
+    "2803:f800::/32",
+    "2405:b500::/32",
+    "2405:8100::/32",
+    "2a06:98c0::/29",
+    "2c0f:f248::/32"
+  ]
+
+# [entryPoints.ssh]
+#   address = ":2222/tcp"
+
+# Cert Résolver DNS for cloudflare wildcard cert.
+[certificatesResolvers.cf.acme]
+  email = "admin@exemple.mail"
+  storage = "/etc/traefik/cloudflare_acme.json" # caServer = "https://acme-staging-v02.api.letsencrypt.org/directory" # test
+  caServer = "https://acme-v02.api.letsencrypt.org/directory" # production
+  [certificatesResolvers.cf.acme.dnsChallenge]
+    provider = "cloudflare"
+    resolvers = ["1.1.1.1:53", "1.0.0.1:53"]
+
+# Cert Résolver DNS for tailscale wildcard cert.
+[certificatesResolvers.ts.tailscale]
+
+[providers.docker]
+  endpoint = "tcp://dockerproxy:2375"
+  exposedByDefault = false
+  # network = "01_cloudflare_proxy"
+  watch = true
+
+[providers.file]
+  directory = "/etc/traefik/dynamic"
+  watch = true
+
+[accessLog]

@@ -1,0 +1,13 @@
+[http.middlewares]
+  [http.middlewares.external_2FA.forwardAuth]
+    address = "http://authelia:9091/api/verify?rd=https://auth.example.com/"
+    trustForwardHeader = true
+    authResponseHeaders = ["Remote-User", "Remote-Groups", "Remote-Name", "Remote-Email"]
+  [http.middlewares.local_2FA.forwardAuth]
+    address = "http://authelia:9091/api/verify?rd=https://ts-domain.ts.net/auth/"
+    trustForwardHeader = true
+    authResponseHeaders = ["Remote-User", "Remote-Groups", "Remote-Name", "Remote-Email"]
+  [http.middlewares.authelia_basic.forwardAuth]
+    address = "http://authelia:9091/api/verify?auth=basic"
+    trustForwardHeader = true
+    authResponseHeaders = ["Remote-User", "Remote-Groups", "Remote-Name", "Remote-Email"]

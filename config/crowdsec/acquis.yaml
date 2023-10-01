@@ -1,0 +1,20 @@
+---
+source: docker
+container_name:
+  - traefik
+labels:
+  type: traefik
+# docker_host: tcp://dockerproxy:2375 ( prob on test POST are required )
+---
+source: docker
+container_name:
+  - authelia
+labels:
+  type: authelia
+# ---
+# source: docker
+# container_name:
+#   - vaultwarden
+# labels:
+#   type: vaultwarden
+...

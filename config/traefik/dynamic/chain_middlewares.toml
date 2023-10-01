@@ -1,0 +1,7 @@
+[http.middlewares]
+  [http.middlewares.external_auth.chain]
+    middlewares = ["crowdsec", "external_2FA"]
+  [http.middlewares.basic_auth.chain]
+    middlewares = ["crowdsec", "authelia_basic"]
+  [http.middlewares.local_auth.chain]
+    middlewares = ["crowdsec", "local_2FA"]

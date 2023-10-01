@@ -1,0 +1,286 @@
+---
+version: "3.8"
+
+secrets:
+  JWT_SECRET:
+    file: ./secrets/JWT_SECRET
+  SESSION_SECRET:
+    file: ./secrets/SESSION_SECRET
+  POSTGRES_PASSWORD:
+    file: ./secrets/POSTGRES_PASSWORD
+  STORAGE_ENCRYPTION_KEY:
+    file: ./secrets/STORAGE_ENCRYPTION_KEY
+  AUTHELIA_STORAGE_POSTGRES_PASSWORD:
+    file: ./secrets/AUTHELIA_STORAGE_POSTGRES_PASSWORD
+  AUTHELIA_DUO_API_SECRET_KEY:
+    file: ./secrets/AUTHELIA_DUO_API_SECRET_KEY
+  AUTHELIA_NOTIFIER_SMTP_PASSWORD:
+    file: ./secrets/AUTHELIA_NOTIFIER_SMTP_PASSWORD
+  CF_API_EMAIL:
+    file: ./secrets/CF_API_EMAIL
+  CF_DNS_API_TOKEN:
+    file: ./secrets/CF_DNS_API_TOKEN
+
+networks:
+  01_cloudflare_proxy:
+    name: 01_cloudflare_proxy
+    external: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/24  # docker network create --driver=bridge --subnet=172.20.0.0/24 01_cloudflare_proxy
+  02_tailscale_local:
+    name: 02_tailscale_local
+    external: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.20.0.0/24  # docker network create --driver=bridge --subnet=10.20.0.0/24 02_tailscale_local
+  docker_sock:
+    driver: bridge
+    name: docker_sock
+    internal: true
+  redis_authelia:
+    driver: bridge
+    name: redis_authelia
+    internal: true
+  postgres_authelia:
+    driver: bridge
+    name: postgres_authelia
+    internal: true
+  redis_crowdsec:
+    driver: bridge
+    name: redis_crowdsec
+    internal: true 
+  bouncer_cloudflare:
+    driver: bridge
+    name: bouncer_cloudflare
+    internal: true
+
+services:
+  authelia:
+    container_name: authelia
+    image: authelia/authelia:${AUTHELIA_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - authelia-postgres
+      - authelia-redis
+    command:
+      - "authelia"
+      - "--config=/config/config.yml"
+      - "--config=/config/access_control.yml"
+      - "--config=/config/notifier.yml"
+    secrets:
+      - JWT_SECRET
+      - SESSION_SECRET
+      - AUTHELIA_STORAGE_POSTGRES_PASSWORD
+      - STORAGE_ENCRYPTION_KEY
+      - AUTHELIA_DUO_API_SECRET_KEY
+      - AUTHELIA_NOTIFIER_SMTP_PASSWORD
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+      AUTHELIA_JWT_SECRET_FILE: /run/secrets/JWT_SECRET
+      AUTHELIA_SESSION_SECRET_FILE: /run/secrets/SESSION_SECRET
+      AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE: /run/secrets/AUTHELIA_STORAGE_POSTGRES_PASSWORD
+      AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE: /run/secrets/STORAGE_ENCRYPTION_KEY
+      AUTHELIA_DUO_API_SECRET_KEY_FILE: /run/secrets/AUTHELIA_DUO_API_SECRET_KEY
+      AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE: /run/secrets/AUTHELIA_NOTIFIER_SMTP_PASSWORD
+    volumes:
+      - ./config/authelia:/config
+    expose:
+      - 9091
+    labels:
+      # Diun
+      - "diun.enable=true"
+      # Traefik
+      - "traefik.enable=true"
+      # Cloudflare
+      - "traefik.http.routers.authelia-cf.rule=Host(`auth.${NDD_CLOUDFLARE:?err}`)"
+      - "traefik.http.routers.authelia-cf.entrypoints=web,websecure"
+      - "traefik.http.routers.authelia-cf.tls=true"
+      - "traefik.http.routers.authelia-cf.tls.certresolver=cf"
+      - "traefik.http.routers.authelia-cf.service=authelia-svc"
+      # TailScale
+      - "traefik.http.routers.authelia-ts.rule=Host(`auth.${NDD_TAILSCALE:?err}`) && Path(`/auth`)"
+      - "traefik.http.routers.authelia-ts.entrypoints=web,websecure"
+      - "traefik.http.routers.authelia-ts.tls=true"
+      - "traefik.http.routers.authelia-ts.tls.certresolver=ts"
+      - "traefik.http.routers.authelia-ts.service=authelia-svc"
+      # Service
+      - "traefik.http.services.authelia-svc.loadbalancer.server.port=9091"
+    networks:
+      01_cloudflare_proxy:
+        ipv4_address: 172.20.0.2
+      02_tailscale_local:
+        ipv4_address: 10.20.0.2
+      redis_authelia: {}
+      postgres_authelia: {}
+  
+  authelia-postgres:
+    container_name: authelia-postgres
+    image: postgres:${POSTGRES_TAG:-14}
+    restart: unless-stopped
+    secrets:
+      - AUTHELIA_STORAGE_POSTGRES_PASSWORD
+    env_file:
+      - ./config/authelia-postgres/authelia-postgres.env
+    volumes:
+      - ./data/authelia-postgres:/var/lib/postgresql/data
+    expose:
+      - 5432
+    networks:
+      postgres_authelia: {}
+    
+  pgbackups:
+    container_name: pgbackups
+    image: prodrigestivill/postgres-backup-local
+    restart: unless-stopped
+    depends_on:
+      - authelia-postgres
+    secrets:
+      - AUTHELIA_STORAGE_POSTGRES_PASSWORD
+    env_file:
+      - ./config/pgbackups/pgbackups.env
+    volumes:
+      - ./backups/postgresql-authelia:/backups
+    networks:
+      postgres_authelia: {}
+
+  authelia-redis:
+    image: redis:${REDIS_TAG:-alpine}
+    container_name: authelia-redis
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      - ./data/authelia-redis:/data
+    expose:
+      - 6379
+    networks:
+      redis_authelia: {}
+  
+  dockerproxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:${DOCKERPROXY_TAG:-edge}
+    container_name: dockerproxy
+    restart: unless-stopped
+    mem_limit: 1G
+    cpus: 0.50
+    environment:
+      CONTAINERS: 1
+    volumes:
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    networks:
+      docker_sock: {}
+
+  crowdsec-redis:
+    image: redis:${REDIS_TAG:-alpine}
+    container_name: crowdsec-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save 60 1 --loglevel debug"]
+    environment:
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      - ./data/crowdsec-redis:/data
+    expose:
+      - 6379
+    networks:
+      redis_crowdsec: {}
+
+  traefik:
+    image: traefik:${TRAEFIK_TAG:-latest}
+    container_name: traefik
+    restart: unless-stopped
+    read_only: true
+    mem_limit: 2G
+    cpus: 0.75
+    depends_on:
+      - dockerproxy
+      - authelia
+    security_opt:
+      - no-new-privileges:true
+    secrets:
+      - CF_API_EMAIL
+      - CF_DNS_API_TOKEN
+    environment:
+      CF_API_EMAIL_FILE: /run/secrets/CF_API_EMAIL
+      CF_DNS_API_TOKEN_FILE: /run/secrets/CF_DNS_API_TOKEN
+    volumes:
+      - ./config/traefik/static/traefik.toml:/etc/traefik/traefik.toml:ro  # Static Traefik Configuration
+      - ./config/traefik/dynamic/:/etc/traefik/dynamic/:ro  # Folder to store dynamic configuration file provider
+      - ./config/traefik/authusers.txt:/etc/traefik/authusers.txt:ro  # userfile for basic auth
+      - ./config/traefik/acme/cloudflare_acme.json:/etc/traefik/cloudflare_acme.json  # certificate storage for cloudflare tls
+      - ./config/traefik/acme/tailscale_acme.json:/etc/traefik/tailscale_acme.json  # certificate storage for tailscale tls
+      - ./config/traefik/plugins-storage:/plugins-storage:rw  # Plugins Storage
+    labels:
+      # Diun
+      - "diun.enable=true"
+      # Traefik
+      - "traefik.enable=true"
+      # Clourdflare
+      - "traefik.http.routers.traefik-cf.entrypoints=web,websecure"
+      - "traefik.http.routers.traefik-cf.rule=Host(`traefik.${NDD_CLOUDFLARE:?err}`)"
+      - "traefik.http.routers.traefik-cf.service=api@internal"
+      - "traefik.http.routers.traefik-cf.tls.certresolver=cf"
+      - "traefik.http.routers.traefik-cf.tls.domains[0].main=${NDD_CLOUDFLARE:?err}"
+      - "traefik.http.routers.traefik-cf.tls.domains[0].sans=*.${NDD_CLOUDFLARE:?err}"
+      - "traefik.http.routers.traefik-cf.middlewares=external_2FA@file"
+      # Tailscale
+      - "traefik.http.routers.traefik-ts.entrypoints=web,websecure"
+      - "traefik.http.routers.traefik-ts.rule=Path(`/traefik`)"
+      - "traefik.http.routers.traefik-ts.service=api@internal"
+      - "traefik.http.routers.traefik-ts.tls.certresolver=ts"
+      - "traefik.http.routers.traefik-ts.tls.domains[0].main=${NDD_TAILSCALE:?err}"
+    ports:
+      - "80:80"
+      - "443:443"
+      # - "2222:2222" # ssh gitea
+    networks:
+      01_cloudflare_proxy:
+          ipv4_address: 172.20.0.3
+      02_tailscale_local:
+          ipv4_address: 10.20.0.3
+      docker_sock: {}
+      crowdsec_redis: {}
+
+  crowdsec:
+    image: crowdsecurity/crowdsec:${CROWDSEC_TAG:-latest}
+    container_name: crowdsec
+    restart: unless-stopped
+    depends_on:
+      - crowdsec-redis
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      PGID: ${XID:-1000}
+      TZ: ${TZ:-Europe/Paris}
+      COLLECTIONS: "crowdsecurity/traefik crowdsecurity/http-cve LePresidente/authelia"
+    volumes:
+      - ./config/crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml
+      - ./data/crowdsec-db:/var/lib/crowdsec/data/
+      - ./config/crowdsec/crowdsec-config:/etc/crowdsec/
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    labels:
+      # Diun
+      - "diun.enable=true"
+    expose:
+      - 8080
+    networks:
+      docker_sock: {}
+      redis_crowdsec: {}
+      bouncer_cloudflare: {}
+      01_cloudflare_proxy:
+        ipv4_address: 172.20.0.4
+
+  bouncer-cloudflare:
+    container_name: bouncer-cloudflare
+    image: crowdsecurity/cloudflare-bouncer:${BOUNCER_CLOUDFLARE_TAG:-latest}
+    restart: unless-stopped
+    volumes:
+      - ./config/crowdsec/crowdsec-cloudflare-bouncer.yaml:/etc/crowdsec/bouncers/crowdsec-cloudflare-bouncer.yaml
+    depends_on:
+      - crowdsec
+    labels:
+      # Diun
+      - "diun.enable=true"
+    networks:
+      bouncer_cloudflare: {}
