@@ -101,7 +101,7 @@ services:
       - "traefik.http.routers.authelia-cf.tls.certresolver=cf"
       - "traefik.http.routers.authelia-cf.service=authelia-svc"
       # TailScale
-      - "traefik.http.routers.authelia-ts.rule=Host(`auth.${NDD_TAILSCALE:?err}`) && Path(`/auth`)"
+      - "traefik.http.routers.authelia-ts.rule=Host(`${NDD_TAILSCALE:?err}`) && Path(`/auth`)"
       - "traefik.http.routers.authelia-ts.entrypoints=web,websecure"
       - "traefik.http.routers.authelia-ts.tls=true"
       - "traefik.http.routers.authelia-ts.tls.certresolver=ts"
