@@ -36,26 +36,26 @@ networks:
       driver: default
       config:
         - subnet: 10.20.0.0/24  # docker network create --driver=bridge --subnet=10.20.0.0/24 02_tailscale_local
+  bouncer_cloudflare:
+    driver: bridge
+    name: bouncer_cloudflare
+    internal: true
   docker_sock:
     driver: bridge
     name: docker_sock
-    internal: true
-  redis_authelia:
-    driver: bridge
-    name: redis_authelia
     internal: true
   postgres_authelia:
     driver: bridge
     name: postgres_authelia
     internal: true
+  redis_authelia:
+    driver: bridge
+    name: redis_authelia
+    internal: true
   redis_crowdsec:
     driver: bridge
     name: redis_crowdsec
     internal: true 
-  bouncer_cloudflare:
-    driver: bridge
-    name: bouncer_cloudflare
-    internal: true
 
 services:
   authelia:
@@ -113,8 +113,8 @@ services:
         ipv4_address: 172.20.0.2
       02_tailscale_local:
         ipv4_address: 10.20.0.2
-      redis_authelia: {}
       postgres_authelia: {}
+      redis_authelia: {}
   
   authelia-postgres:
     container_name: authelia-postgres
@@ -239,8 +239,8 @@ services:
           ipv4_address: 172.20.0.3
       02_tailscale_local:
           ipv4_address: 10.20.0.3
-      docker_sock: {}
       crowdsec_redis: {}
+      docker_sock: {}
 
   crowdsec:
     image: crowdsecurity/crowdsec:${CROWDSEC_TAG:-latest}
@@ -265,11 +265,13 @@ services:
     expose:
       - 8080
     networks:
-      docker_sock: {}
-      redis_crowdsec: {}
-      bouncer_cloudflare: {}
       01_cloudflare_proxy:
         ipv4_address: 172.20.0.4
+      02_tailscale_local:
+        ipv4_address: 10.20.0.4
+      bouncer_cloudflare: {}
+      docker_sock: {}
+      redis_crowdsec: {}
 
   bouncer-cloudflare:
     container_name: bouncer-cloudflare
