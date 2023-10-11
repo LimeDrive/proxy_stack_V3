@@ -6,14 +6,14 @@
 
 theme: dark
 
-default_redirection_url: https://auth.example.com/ # cloudflare auth connection
+default_redirection_url: https://example.com/auth # This is the URL that Authelia will redirect to after a successful login.
 
 default_2fa_method: ""
 
 server:
   host: 0.0.0.0
   port: 9091
-  path: ""
+  path: "/auth"
   enable_pprof: false
   enable_expvars: false
   disable_healthcheck: false
@@ -70,7 +70,7 @@ authentication_backend:
     custom_url: ""
   refresh_interval: 5m
   file:
-    path: /config/users_database.yml
+    path: /config/local_users_database.yml
     password:
       algorithm: argon2id
       iterations: 1
@@ -101,7 +101,7 @@ session:
   inactivity: 5m
   remember_me_duration: 3M
   redis:
-    host: authelia-redis
+    host: local-authelia-redis
     port: 6379
 
 regulation:
@@ -114,7 +114,7 @@ storage:
   # local:
   #   path: /config/db.sqlite3
   postgres:
-    host: authelia-postgres
+    host: local-authelia-postgres
     port: 5432
     database: authelia_db
     schema: public

@@ -1,0 +1,24 @@
+---
+###############################################################################
+#                           Authelia Configuration                            #
+#                           Notifier Configuration                            #
+###############################################################################
+notifier:
+  disable_startup_check: false
+  smtp:
+    host: smtp.sendgrid.net
+    port: 465
+    timeout: 5s
+    username: apikey
+  #   password: IN FILE
+    sender: "Authelia <noreply@example.com>"
+  #   identifier: localhost
+    subject: "[Authelia] {title}"
+  #   startup_check_address: test@authelia.com
+    disable_require_tls: false
+    disable_html_emails: false
+    tls:
+      server_name: smtp.sendgrid.net
+      skip_verify: false
+      minimum_version: TLS1.2
+...
